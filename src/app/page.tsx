@@ -48,7 +48,7 @@ export default function Dashboard() {
       try {
         // 1. Fetch Transactions
         const { data: transactions, error: txError } = await supabase
-          .from("transaction")
+          .from("Transaction")
           .select("id, date, type, amount, category")
           .order("date", { ascending: true });
 
@@ -62,7 +62,7 @@ export default function Dashboard() {
 
         // 2. Fetch User Settings (expectedSalary)
         const { data: settings } = await supabase
-          .from("usersetting")
+          .from("UserSetting")
           .select("key, value")
           .eq("key", "expectedSalary")
           .single();
