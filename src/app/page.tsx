@@ -83,7 +83,7 @@ export default function Dashboard() {
           transactions.forEach((tx: Transaction) => {
             const dateObj = new Date(tx.date);
             const monthKey = `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}`;
-            const displayMonth = `${dateObj.getMonth() + 1}월`; // For chart display
+            const displayMonth = `${dateObj.getFullYear()}.${String(dateObj.getMonth() + 1).padStart(2, '0')}`; // For chart display e.g. 2026.08
 
             if (!monthlyAgg.has(displayMonth)) {
               monthlyAgg.set(displayMonth, { income: 0, expense: 0 });
@@ -93,6 +93,7 @@ export default function Dashboard() {
 
             if (tx.type === "INCOME") {
               currentObj.income += tx.amount;
+              // Add to current month summary if it matches exactly this month
               if (monthKey === currentMonthKey) tempCurrentIncome += tx.amount;
             } else if (tx.type === "EXPENSE") {
               currentObj.expense += tx.amount;
@@ -103,12 +104,14 @@ export default function Dashboard() {
           setCurrentMonthIncome(tempCurrentIncome);
           setCurrentMonthExpense(tempCurrentExpense);
 
-          // Convert Map to Array for Recharts
-          const chartData: MonthlyData[] = Array.from(monthlyAgg.entries()).map(([month, data]) => ({
-            name: month,
-            수입: data.income,
-            지출: data.expense
-          }));
+          // Convert Map to Array for Recharts, sorted chronologically
+          const chartData: MonthlyData[] = Array.from(monthlyAgg.entries())
+            .map(([month, data]) => ({
+              name: month,
+              수입: data.income,
+              지출: data.expense
+            }))
+            .sort((a, b) => a.name.localeCompare(b.name));
 
           setMonthlyData(chartData);
         }

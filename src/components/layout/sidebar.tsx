@@ -7,7 +7,8 @@ import {
   Wallet, 
   Newspaper, 
   Settings,
-  BrainCircuit
+  BrainCircuit,
+  ExternalLink
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -42,6 +43,13 @@ const routes = [
     href: "/settings",
     color: "text-gray-400",
   },
+  {
+    label: "가계부 (외부)",
+    icon: ExternalLink,
+    href: "https://master-money-one.vercel.app/",
+    color: "text-sky-300",
+    external: true,
+  },
 ];
 
 export function Sidebar() {
@@ -63,9 +71,11 @@ export function Sidebar() {
             <Link
               key={route.href}
               href={route.href}
+              target={route.external ? "_blank" : undefined}
+              rel={route.external ? "noopener noreferrer" : undefined}
               className={cn(
                 "text-sm group flex p-3 w-full justify-start font-medium cursor-pointer hover:text-white hover:bg-white/10 rounded-lg transition",
-                pathname === route.href ? "text-white bg-white/10" : "text-zinc-400"
+                !route.external && pathname === route.href ? "text-white bg-white/10" : "text-zinc-400"
               )}
             >
               <div className="flex items-center flex-1">
