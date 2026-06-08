@@ -1,13 +1,15 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { 
   ArrowUpRight, 
   ArrowDownRight, 
   DollarSign, 
   CreditCard, 
   Activity,
-  Wallet
+  Wallet,
+  ChevronLeft,
+  ChevronRight
 } from "lucide-react";
 import { 
   Line, 
@@ -38,19 +40,19 @@ interface MonthlyData {
 
 export default function Dashboard() {
   const [connectionStatus, setConnectionStatus] = useState<"loading" | "connected" | "error">("loading");
-  const [monthlyData, setMonthlyData] = useState<MonthlyData[]>([]);
-  const [currentMonthIncome, setCurrentMonthIncome] = useState(0);
-  const [currentMonthExpense, setCurrentMonthExpense] = useState(0);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [expectedSalary, setExpectedSalary] = useState(0);
+  const [selectedMonth, setSelectedMonth] = useState(new Date());
 
   useEffect(() => {
     const fetchData = async () => {
       try {
         // 1. Fetch Transactions
-        const { data: transactions, error: txError } = await supabase
+        const { data: txData, error: txError } = await supabase
           .from("Transaction")
           .select("id, date, type, amount, category")
-          .order("date", { ascending: true });
+          .order("date", { ascending: false })
+          .limit(5000);
 
         if (txError) {
           console.error("Fetch error:", txError);
@@ -59,6 +61,9 @@ export default function Dashboard() {
         }
 
         setConnectionStatus("connected");
+        if (txData) {
+          setTransactions(txData);
+        }
 
         // 2. Fetch User Settings (expectedSalary)
         const { data: settings } = await supabase
@@ -71,50 +76,6 @@ export default function Dashboard() {
           setExpectedSalary(Number(settings.value));
         }
 
-        // 3. Process Data for Chart
-        if (transactions) {
-          const monthlyAgg = new Map<string, { income: number; expense: number }>();
-          
-          const now = new Date();
-          const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-          let tempCurrentIncome = 0;
-          let tempCurrentExpense = 0;
-
-          transactions.forEach((tx: Transaction) => {
-            const dateObj = new Date(tx.date);
-            const monthKey = `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}`;
-            const displayMonth = `${dateObj.getFullYear()}.${String(dateObj.getMonth() + 1).padStart(2, '0')}`; // For chart display e.g. 2026.08
-
-            if (!monthlyAgg.has(displayMonth)) {
-              monthlyAgg.set(displayMonth, { income: 0, expense: 0 });
-            }
-
-            const currentObj = monthlyAgg.get(displayMonth)!;
-
-            if (tx.type === "INCOME") {
-              currentObj.income += tx.amount;
-              // Add to current month summary if it matches exactly this month
-              if (monthKey === currentMonthKey) tempCurrentIncome += tx.amount;
-            } else if (tx.type === "EXPENSE") {
-              currentObj.expense += tx.amount;
-              if (monthKey === currentMonthKey) tempCurrentExpense += tx.amount;
-            }
-          });
-
-          setCurrentMonthIncome(tempCurrentIncome);
-          setCurrentMonthExpense(tempCurrentExpense);
-
-          // Convert Map to Array for Recharts, sorted chronologically
-          const chartData: MonthlyData[] = Array.from(monthlyAgg.entries())
-            .map(([month, data]) => ({
-              name: month,
-              수입: data.income,
-              지출: data.expense
-            }))
-            .sort((a, b) => a.name.localeCompare(b.name));
-
-          setMonthlyData(chartData);
-        }
       } catch (err) {
         console.error(err);
         setConnectionStatus("error");
@@ -124,13 +85,92 @@ export default function Dashboard() {
     fetchData();
   }, []);
 
+  const { currentMonthIncome, currentMonthExpense, monthlyData } = useMemo(() => {
+    const monthlyAgg = new Map<string, { income: number; expense: number }>();
+    const targetMonthKey = `${selectedMonth.getFullYear()}-${String(selectedMonth.getMonth() + 1).padStart(2, '0')}`;
+    
+    let tempCurrentIncome = 0;
+    let tempCurrentExpense = 0;
+
+    transactions.forEach((tx: Transaction) => {
+      const dateObj = new Date(tx.date);
+      const monthKey = `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}`;
+      const displayMonth = `${dateObj.getFullYear()}.${String(dateObj.getMonth() + 1).padStart(2, '0')}`; // For chart display e.g. 2026.08
+
+      if (!monthlyAgg.has(displayMonth)) {
+        monthlyAgg.set(displayMonth, { income: 0, expense: 0 });
+      }
+
+      const currentObj = monthlyAgg.get(displayMonth)!;
+
+      if (tx.type === "INCOME") {
+        currentObj.income += tx.amount;
+        if (monthKey === targetMonthKey) tempCurrentIncome += tx.amount;
+      } else if (tx.type === "EXPENSE") {
+        currentObj.expense += tx.amount;
+        if (monthKey === targetMonthKey) tempCurrentExpense += tx.amount;
+      }
+    });
+
+    const chartData: MonthlyData[] = Array.from(monthlyAgg.entries())
+      .map(([month, data]) => ({
+        name: month,
+        수입: data.income,
+        지출: data.expense
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+
+    return { 
+      currentMonthIncome: tempCurrentIncome, 
+      currentMonthExpense: tempCurrentExpense, 
+      monthlyData: chartData 
+    };
+  }, [transactions, selectedMonth]);
+
+  const handlePrevMonth = () => {
+    setSelectedMonth(prev => {
+      const newDate = new Date(prev);
+      newDate.setMonth(newDate.getMonth() - 1);
+      return newDate;
+    });
+  };
+
+  const handleNextMonth = () => {
+    setSelectedMonth(prev => {
+      const newDate = new Date(prev);
+      newDate.setMonth(newDate.getMonth() + 1);
+      return newDate;
+    });
+  };
+
   return (
     <div className="p-8 space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-1000">
-      <div className="flex flex-col gap-2">
-        <h2 className="text-3xl font-bold tracking-tight text-white">대시보드</h2>
-        <div className="flex items-center text-sm text-zinc-400">
-          <div className={`w-2 h-2 rounded-full mr-2 ${connectionStatus === 'connected' ? 'bg-emerald-500' : connectionStatus === 'loading' ? 'bg-amber-500' : 'bg-rose-500'}`} />
-          {connectionStatus === 'connected' ? '데이터 동기화 완료 (money-manager)' : connectionStatus === 'loading' ? '데이터 불러오는 중...' : '데이터 연결 오류'}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex flex-col gap-2">
+          <h2 className="text-3xl font-bold tracking-tight text-white">대시보드</h2>
+          <div className="flex items-center text-sm text-zinc-400">
+            <div className={`w-2 h-2 rounded-full mr-2 ${connectionStatus === 'connected' ? 'bg-emerald-500' : connectionStatus === 'loading' ? 'bg-amber-500' : 'bg-rose-500'}`} />
+            {connectionStatus === 'connected' ? '데이터 동기화 완료 (money-manager)' : connectionStatus === 'loading' ? '데이터 불러오는 중...' : '데이터 연결 오류'}
+          </div>
+        </div>
+
+        {/* Month Selector */}
+        <div className="flex items-center gap-4 bg-zinc-900/50 border border-zinc-800 rounded-full px-4 py-2 backdrop-blur-xl">
+          <button 
+            onClick={handlePrevMonth}
+            className="p-1 hover:bg-zinc-800 rounded-full transition-colors text-zinc-400 hover:text-white"
+          >
+            <ChevronLeft className="w-5 h-5" />
+          </button>
+          <span className="text-white font-medium min-w-[100px] text-center">
+            {selectedMonth.getFullYear()}년 {selectedMonth.getMonth() + 1}월
+          </span>
+          <button 
+            onClick={handleNextMonth}
+            className="p-1 hover:bg-zinc-800 rounded-full transition-colors text-zinc-400 hover:text-white"
+          >
+            <ChevronRight className="w-5 h-5" />
+          </button>
         </div>
       </div>
 
