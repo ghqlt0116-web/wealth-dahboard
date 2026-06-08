@@ -217,7 +217,7 @@ export default function Dashboard() {
                     <Tooltip 
                       contentStyle={{ backgroundColor: '#18181b', borderColor: '#27272a', color: '#fff', borderRadius: '8px' }}
                       itemStyle={{ color: '#fff' }}
-                      formatter={(value: number) => [`₩ ${value.toLocaleString()}`, undefined]}
+                      formatter={(value: any) => [`₩ ${Number(value).toLocaleString()}`, undefined]}
                     />
                     <Line type="monotone" dataKey="수입" stroke="#0ea5e9" strokeWidth={3} dot={{ r: 4 }} activeDot={{ r: 6 }} />
                     <Line type="monotone" dataKey="지출" stroke="#f43f5e" strokeWidth={3} dot={{ r: 4 }} activeDot={{ r: 6 }} />
