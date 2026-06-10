@@ -31,6 +31,8 @@ interface Transaction {
   type: "EXPENSE" | "INCOME";
   amount: number;
   category: string;
+  card?: string;
+  installmentGroupId?: string;
 }
 
 interface MonthlyData {
@@ -55,7 +57,7 @@ export default function Dashboard() {
         // 1. Fetch Transactions specifically for the selected 6-month window
         const { data: txData, error: txError } = await supabase
           .from("Transaction")
-          .select("id, date, type, amount, category")
+          .select("id, date, type, amount, category, card, installmentGroupId")
           .gte("date", start.toISOString())
           .lte("date", end.toISOString())
           .order("date", { ascending: true })
@@ -92,12 +94,13 @@ export default function Dashboard() {
     fetchData();
   }, [selectedMonth]); // Refetch when selectedMonth changes
 
-  const { currentMonthIncome, currentMonthExpense, monthlyData, currentIncomeList, currentExpenseList } = useMemo(() => {
+  const { currentMonthIncome, currentMonthExpense, monthlyData, currentIncomeGroups, currentExpenseGroups, fixedExpenseTotal } = useMemo(() => {
     const monthlyAgg = new Map<string, { income: number; expense: number }>();
     const targetMonthKey = `${selectedMonth.getFullYear()}-${String(selectedMonth.getMonth() + 1).padStart(2, '0')}`;
     
-    const incomeList: Transaction[] = [];
-    const expenseList: Transaction[] = [];
+    const incomeGroups: Record<string, number> = {};
+    const expenseGroups: Record<string, number> = {};
+    let tempFixedExpenseTotal = 0;
     
     // Initialize strictly the last 6 months based on the SELECTED month
     for (let i = 5; i >= 0; i--) {
@@ -136,13 +139,19 @@ export default function Dashboard() {
           currentObj.income += amount;
           if (monthKey === targetMonthKey) {
             tempCurrentIncome += amount;
-            incomeList.push(tx);
+            const cat = tx.category || "기타 수입";
+            incomeGroups[cat] = (incomeGroups[cat] || 0) + amount;
           }
         } else if (txType === "EXPENSE" || txType === "지출") {
           currentObj.expense += amount;
           if (monthKey === targetMonthKey) {
             tempCurrentExpense += amount;
-            expenseList.push(tx);
+            if (tx.installmentGroupId && tx.installmentGroupId.startsWith("fixed_")) {
+              tempFixedExpenseTotal += amount;
+            } else {
+              const cardName = tx.card || "현금/기타";
+              expenseGroups[cardName] = (expenseGroups[cardName] || 0) + amount;
+            }
           }
         }
       }
@@ -160,8 +169,9 @@ export default function Dashboard() {
       currentMonthIncome: tempCurrentIncome, 
       currentMonthExpense: tempCurrentExpense, 
       monthlyData: chartData,
-      currentIncomeList: incomeList.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()),
-      currentExpenseList: expenseList.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+      currentIncomeGroups: Object.entries(incomeGroups).sort((a, b) => b[1] - a[1]),
+      currentExpenseGroups: Object.entries(expenseGroups).sort((a, b) => b[1] - a[1]),
+      fixedExpenseTotal: tempFixedExpenseTotal
     };
   }, [transactions, selectedMonth]);
 
@@ -247,13 +257,10 @@ export default function Dashboard() {
               <DialogTitle>이번 달 수입 내역</DialogTitle>
             </DialogHeader>
             <div className="space-y-4 mt-4">
-              {currentIncomeList.length > 0 ? currentIncomeList.map((tx: any) => (
-                <div key={tx.id} className="flex justify-between items-center border-b border-zinc-800 pb-2">
-                  <div>
-                    <p className="font-medium">{tx.category} {tx.memo && <span className="text-xs text-zinc-500 ml-1">({tx.memo})</span>}</p>
-                    <p className="text-xs text-zinc-500">{new Date(tx.date).toLocaleDateString()}</p>
-                  </div>
-                  <p className="text-sky-500 font-bold">+₩ {Number(tx.amount).toLocaleString()}</p>
+              {currentIncomeGroups.length > 0 ? currentIncomeGroups.map(([category, total]) => (
+                <div key={category} className="flex justify-between items-center border-b border-zinc-800 pb-2">
+                  <p className="font-medium text-zinc-300">💰 {category}</p>
+                  <p className="text-sky-500 font-bold">+₩ {total.toLocaleString()}</p>
                 </div>
               )) : (
                 <p className="text-zinc-500 text-sm text-center py-4">이번 달 수입 내역이 없습니다.</p>
@@ -282,15 +289,18 @@ export default function Dashboard() {
               <DialogTitle>이번 달 지출 내역 (고정지출 포함)</DialogTitle>
             </DialogHeader>
             <div className="space-y-4 mt-4">
-              {currentExpenseList.length > 0 ? currentExpenseList.map((tx: any) => (
-                <div key={tx.id} className="flex justify-between items-center border-b border-zinc-800 pb-2">
-                  <div>
-                    <p className="font-medium">{tx.category} {tx.memo && <span className="text-xs text-zinc-500 ml-1">({tx.memo})</span>}</p>
-                    <p className="text-xs text-zinc-500">{new Date(tx.date).toLocaleDateString()}</p>
-                  </div>
-                  <p className="text-rose-500 font-bold">-₩ {Number(tx.amount).toLocaleString()}</p>
+              {fixedExpenseTotal > 0 && (
+                <div className="flex justify-between items-center border-b border-zinc-800 pb-2">
+                  <p className="font-medium text-rose-400">📌 고정 지출 총합</p>
+                  <p className="text-rose-500 font-bold">-₩ {fixedExpenseTotal.toLocaleString()}</p>
                 </div>
-              )) : (
+              )}
+              {currentExpenseGroups.length > 0 ? currentExpenseGroups.map(([card, total]) => (
+                <div key={card} className="flex justify-between items-center border-b border-zinc-800 pb-2">
+                  <p className="font-medium text-zinc-300">💳 {card}</p>
+                  <p className="text-rose-500 font-bold">-₩ {total.toLocaleString()}</p>
+                </div>
+              )) : fixedExpenseTotal === 0 && (
                 <p className="text-zinc-500 text-sm text-center py-4">이번 달 지출 내역이 없습니다.</p>
               )}
             </div>
