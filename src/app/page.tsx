@@ -47,6 +47,10 @@ export default function Dashboard() {
   useEffect(() => {
     const fetchData = async () => {
       try {
+        const now = new Date();
+        const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 5, 1);
+        const endOfThisMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+
         // 1. Fetch Transactions
         const { data: txData, error: txError } = await supabase
           .from("Transaction")
@@ -86,14 +90,34 @@ export default function Dashboard() {
   }, []);
 
   const { currentMonthIncome, currentMonthExpense, monthlyData } = useMemo(() => {
+    const now = new Date();
     const monthlyAgg = new Map<string, { income: number; expense: number }>();
     const targetMonthKey = `${selectedMonth.getFullYear()}-${String(selectedMonth.getMonth() + 1).padStart(2, '0')}`;
+    
+    // Initialize exactly the last 6 months based on the SELECTED month so the chart always looks clean
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() - i, 1);
+      const displayMonth = `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}`;
+      monthlyAgg.set(displayMonth, { income: 0, expense: 0 });
+    }
     
     let tempCurrentIncome = 0;
     let tempCurrentExpense = 0;
 
-    transactions.forEach((tx: Transaction) => {
-      const dateObj = new Date(tx.date);
+    transactions.forEach((tx: any) => {
+      if (!tx.date || !tx.type || tx.amount == null) return;
+
+      let dateObj = new Date(tx.date);
+      // Handle timestamp strings
+      if (isNaN(dateObj.getTime())) {
+        const numDate = Number(tx.date);
+        if (!isNaN(numDate)) {
+          dateObj = new Date(numDate > 9999999999 ? numDate : numDate * 1000);
+        }
+      }
+      
+      if (isNaN(dateObj.getTime())) return; // Skip if still invalid
+
       const monthKey = `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}`;
       const displayMonth = `${dateObj.getFullYear()}.${String(dateObj.getMonth() + 1).padStart(2, '0')}`; // For chart display e.g. 2026.08
 
@@ -102,23 +126,25 @@ export default function Dashboard() {
       }
 
       const currentObj = monthlyAgg.get(displayMonth)!;
+      const txType = String(tx.type).toUpperCase().trim();
+      const amount = Number(tx.amount);
 
-      if (tx.type === "INCOME") {
-        currentObj.income += tx.amount;
-        if (monthKey === targetMonthKey) tempCurrentIncome += tx.amount;
-      } else if (tx.type === "EXPENSE") {
-        currentObj.expense += tx.amount;
-        if (monthKey === targetMonthKey) tempCurrentExpense += tx.amount;
+      if (txType === "INCOME" || txType === "수입") {
+        currentObj.income += amount;
+        if (monthKey === targetMonthKey) tempCurrentIncome += amount;
+      } else if (txType === "EXPENSE" || txType === "지출") {
+        currentObj.expense += amount;
+        if (monthKey === targetMonthKey) tempCurrentExpense += amount;
       }
     });
 
+    // Convert Map to Array for Recharts
     const chartData: MonthlyData[] = Array.from(monthlyAgg.entries())
       .map(([month, data]) => ({
         name: month,
         수입: data.income,
         지출: data.expense
-      }))
-      .sort((a, b) => a.name.localeCompare(b.name));
+      }));
 
     return { 
       currentMonthIncome: tempCurrentIncome, 
