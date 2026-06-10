@@ -22,6 +22,7 @@ import {
 } from "recharts";
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { supabase } from "@/lib/supabase";
 
 interface Transaction {
@@ -91,9 +92,12 @@ export default function Dashboard() {
     fetchData();
   }, [selectedMonth]); // Refetch when selectedMonth changes
 
-  const { currentMonthIncome, currentMonthExpense, monthlyData } = useMemo(() => {
+  const { currentMonthIncome, currentMonthExpense, monthlyData, currentIncomeList, currentExpenseList } = useMemo(() => {
     const monthlyAgg = new Map<string, { income: number; expense: number }>();
     const targetMonthKey = `${selectedMonth.getFullYear()}-${String(selectedMonth.getMonth() + 1).padStart(2, '0')}`;
+    
+    const incomeList: Transaction[] = [];
+    const expenseList: Transaction[] = [];
     
     // Initialize strictly the last 6 months based on the SELECTED month
     for (let i = 5; i >= 0; i--) {
@@ -130,10 +134,16 @@ export default function Dashboard() {
 
         if (txType === "INCOME" || txType === "수입") {
           currentObj.income += amount;
-          if (monthKey === targetMonthKey) tempCurrentIncome += amount;
+          if (monthKey === targetMonthKey) {
+            tempCurrentIncome += amount;
+            incomeList.push(tx);
+          }
         } else if (txType === "EXPENSE" || txType === "지출") {
           currentObj.expense += amount;
-          if (monthKey === targetMonthKey) tempCurrentExpense += amount;
+          if (monthKey === targetMonthKey) {
+            tempCurrentExpense += amount;
+            expenseList.push(tx);
+          }
         }
       }
     });
@@ -149,7 +159,9 @@ export default function Dashboard() {
     return { 
       currentMonthIncome: tempCurrentIncome, 
       currentMonthExpense: tempCurrentExpense, 
-      monthlyData: chartData 
+      monthlyData: chartData,
+      currentIncomeList: incomeList.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()),
+      currentExpenseList: expenseList.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
     };
   }, [transactions, selectedMonth]);
 
@@ -215,31 +227,79 @@ export default function Dashboard() {
           </CardContent>
         </Card>
         
-        <Card className="bg-zinc-900/50 border-zinc-800 backdrop-blur-xl hover:bg-zinc-900/80 transition-all">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-zinc-400">이번 달 수입</CardTitle>
-            <DollarSign className="h-4 w-4 text-sky-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-white">₩ {currentMonthIncome.toLocaleString()}</div>
-            <p className="text-xs text-sky-500 flex items-center mt-1">
-              예상 급여: ₩ {expectedSalary.toLocaleString()}
-            </p>
-          </CardContent>
-        </Card>
+        <Dialog>
+          <DialogTrigger asChild>
+            <div className="cursor-pointer group h-full">
+              <Card className="h-full bg-zinc-900/50 border-zinc-800 backdrop-blur-xl group-hover:bg-zinc-800/80 transition-all">
+                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                  <CardTitle className="text-sm font-medium text-zinc-400">이번 달 수입</CardTitle>
+                  <DollarSign className="h-4 w-4 text-sky-500" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-white">₩ {currentMonthIncome.toLocaleString()}</div>
+                  <p className="text-xs text-zinc-500 flex items-center mt-1 group-hover:text-sky-400 transition-colors">
+                    클릭하여 내역 보기 👆
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
+          </DialogTrigger>
+          <DialogContent className="bg-zinc-950 border-zinc-800 text-white max-h-[80vh] overflow-y-auto w-[90vw] sm:max-w-[425px]">
+            <DialogHeader>
+              <DialogTitle>이번 달 수입 내역</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 mt-4">
+              {currentIncomeList.length > 0 ? currentIncomeList.map((tx: any) => (
+                <div key={tx.id} className="flex justify-between items-center border-b border-zinc-800 pb-2">
+                  <div>
+                    <p className="font-medium">{tx.category} {tx.memo && <span className="text-xs text-zinc-500 ml-1">({tx.memo})</span>}</p>
+                    <p className="text-xs text-zinc-500">{new Date(tx.date).toLocaleDateString()}</p>
+                  </div>
+                  <p className="text-sky-500 font-bold">+₩ {Number(tx.amount).toLocaleString()}</p>
+                </div>
+              )) : (
+                <p className="text-zinc-500 text-sm text-center py-4">이번 달 수입 내역이 없습니다.</p>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
 
-        <Card className="bg-zinc-900/50 border-zinc-800 backdrop-blur-xl hover:bg-zinc-900/80 transition-all">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-zinc-400">이번 달 지출</CardTitle>
-            <CreditCard className="h-4 w-4 text-rose-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-white">₩ {currentMonthExpense.toLocaleString()}</div>
-            <p className="text-xs text-rose-500 flex items-center mt-1">
-              이번 달 현금 흐름 분석
-            </p>
-          </CardContent>
-        </Card>
+        <Dialog>
+          <DialogTrigger asChild>
+            <div className="cursor-pointer group h-full">
+              <Card className="h-full bg-zinc-900/50 border-zinc-800 backdrop-blur-xl group-hover:bg-zinc-800/80 transition-all">
+                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                  <CardTitle className="text-sm font-medium text-zinc-400">이번 달 지출</CardTitle>
+                  <CreditCard className="h-4 w-4 text-rose-500" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-white">₩ {currentMonthExpense.toLocaleString()}</div>
+                  <p className="text-xs text-zinc-500 flex items-center mt-1 group-hover:text-rose-400 transition-colors">
+                    클릭하여 내역 보기 👆
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
+          </DialogTrigger>
+          <DialogContent className="bg-zinc-950 border-zinc-800 text-white max-h-[80vh] overflow-y-auto w-[90vw] sm:max-w-[425px]">
+            <DialogHeader>
+              <DialogTitle>이번 달 지출 내역 (고정지출 포함)</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 mt-4">
+              {currentExpenseList.length > 0 ? currentExpenseList.map((tx: any) => (
+                <div key={tx.id} className="flex justify-between items-center border-b border-zinc-800 pb-2">
+                  <div>
+                    <p className="font-medium">{tx.category} {tx.memo && <span className="text-xs text-zinc-500 ml-1">({tx.memo})</span>}</p>
+                    <p className="text-xs text-zinc-500">{new Date(tx.date).toLocaleDateString()}</p>
+                  </div>
+                  <p className="text-rose-500 font-bold">-₩ {Number(tx.amount).toLocaleString()}</p>
+                </div>
+              )) : (
+                <p className="text-zinc-500 text-sm text-center py-4">이번 달 지출 내역이 없습니다.</p>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
 
         <Card className="bg-zinc-900/50 border-zinc-800 backdrop-blur-xl hover:bg-zinc-900/80 transition-all">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
