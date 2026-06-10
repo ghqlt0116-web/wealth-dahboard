@@ -94,7 +94,7 @@ export default function Dashboard() {
     fetchData();
   }, [selectedMonth]); // Refetch when selectedMonth changes
 
-  const { currentMonthIncome, currentMonthExpense, monthlyData, currentIncomeGroups, currentExpenseGroups, fixedExpenseTotal } = useMemo(() => {
+  const { currentMonthIncome, currentMonthExpense, monthlyData, currentIncomeGroups, currentVariableExpenseGroups, currentFixedExpenseGroups, fixedExpenseTotal } = useMemo(() => {
     const monthlyAgg = new Map<string, { income: number; expense: number }>();
     const targetMonthKey = `${selectedMonth.getFullYear()}-${String(selectedMonth.getMonth() + 1).padStart(2, '0')}`;
     
