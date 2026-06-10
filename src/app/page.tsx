@@ -9,13 +9,13 @@ import {
   BrainCircuit,
   Baby,
   CalendarDays,
-  ExternalLink,
-  TrendingUp,
-  Building,
   Landmark,
   Coins,
   ChevronRight,
-  ShieldAlert
+  TrendingUp,
+  Star,
+  ExternalLink,
+  Building
 } from "lucide-react";
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -26,41 +26,39 @@ export default function Dashboard() {
   const [totalAsset, setTotalAsset] = useState(0);
   const [totalDebt, setTotalDebt] = useState(0);
   const [assetGroups, setAssetGroups] = useState({ realEstate: 0, stock: 0, cash: 0 });
-
-  // Child Support Calculations
-  const today = new Date();
-  const nextPayment = new Date(today.getFullYear(), today.getMonth(), 25);
-  if (today.getDate() > 25) {
-    nextPayment.setMonth(nextPayment.getMonth() + 1);
-  }
-  const dDayNextPayment = Math.ceil((nextPayment.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-
-  const damMiddleSchool = new Date("2030-03-01");
-  const dDayDamMiddle = Math.ceil((damMiddleSchool.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+  const [topInvestments, setTopInvestments] = useState<any[]>([]);
 
   useEffect(() => {
     async function fetchData() {
-      const { data: assets } = await supabase.from("Asset").select("group, current_price");
+      const { data: assets } = await supabase.from("Asset").select("name, group, current_price, ticker");
       const { data: debts } = await supabase.from("Debt").select("balance");
       
       let sumAsset = 0;
       let sumRealEstate = 0;
       let sumStock = 0;
       let sumCash = 0;
+      const investments: any[] = [];
 
       assets?.forEach(a => {
         const val = Number(a.current_price || 0);
         sumAsset += val;
         if (a.group === '부동산') sumRealEstate += val;
         else if (a.group.includes('현금') || a.group.includes('은행')) sumCash += val;
-        else sumStock += val; // 주식, 연금 등
+        else {
+          sumStock += val; // 주식, 연금 등
+          investments.push({ name: a.name, value: val, ticker: a.ticker });
+        }
       });
 
       const sumDebt = debts?.reduce((sum, d) => sum + Number(d.balance || 0), 0) || 0;
       
+      // Sort investments by value descending and take top 4
+      investments.sort((a, b) => b.value - a.value);
+      
       setTotalAsset(sumAsset);
       setTotalDebt(sumDebt);
       setAssetGroups({ realEstate: sumRealEstate, stock: sumStock, cash: sumCash });
+      setTopInvestments(investments.slice(0, 4));
     }
     fetchData();
   }, []);
@@ -153,45 +151,37 @@ export default function Dashboard() {
           </Card>
         </Link>
 
-        {/* Child Support Milestone Widget */}
-        <div className="group">
-          <Card className="h-full bg-zinc-900/50 border-zinc-800 backdrop-blur-xl group-hover:border-rose-500/30 transition-all duration-300 relative overflow-hidden flex flex-col">
-            <div className="absolute top-0 right-0 p-32 bg-rose-500/5 rounded-full blur-3xl -mr-16 -mt-16 transition-all duration-500 group-hover:bg-rose-500/10" />
-            <CardHeader>
+        {/* Top Investments Widget */}
+        <Link href="/portfolio" className="group">
+          <Card className="h-full bg-zinc-900/50 border-zinc-800 backdrop-blur-xl group-hover:border-blue-500/30 transition-all duration-300 relative overflow-hidden flex flex-col">
+            <div className="absolute top-0 right-0 p-32 bg-blue-500/5 rounded-full blur-3xl -mr-16 -mt-16 transition-all duration-500 group-hover:bg-blue-500/10" />
+            <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
                 <CardTitle className="flex items-center gap-2 text-zinc-100">
-                  <Baby className="w-5 h-5 text-rose-400" />
-                  양육비 마일스톤
+                  <Star className="w-5 h-5 text-blue-400" />
+                  나의 핵심 투자 종목
                 </CardTitle>
+                <ArrowUpRight className="w-5 h-5 text-zinc-500 group-hover:text-blue-400 transition-colors" />
               </div>
             </CardHeader>
-            <CardContent className="flex-1 flex flex-col justify-center space-y-4">
-              <div className="bg-zinc-950/50 rounded-xl p-4 border border-zinc-800/50 relative">
-                <div className="absolute -left-[1px] top-4 bottom-4 w-[2px] bg-rose-500 rounded-r-full" />
-                <div className="flex justify-between items-center mb-1">
-                  <p className="text-sm font-medium text-zinc-300 flex items-center gap-1.5">
-                    <CalendarDays className="w-4 h-4 text-zinc-400" />
-                    차기 지급일
-                  </p>
-                  <span className="text-rose-400 font-bold">D-{dDayNextPayment}</span>
+            <CardContent className="flex-1 flex flex-col justify-center space-y-3">
+              {topInvestments.map((inv, idx) => (
+                <div key={idx} className="bg-zinc-950/50 rounded-lg p-3 border border-zinc-800/50 flex justify-between items-center group/item hover:border-zinc-700 transition-colors">
+                  <div>
+                    <h4 className="text-sm font-medium text-zinc-200 line-clamp-1 group-hover/item:text-blue-400 transition-colors">{inv.name}</h4>
+                    {inv.ticker && <span className="text-xs text-zinc-500">{inv.ticker.replace('.KS', '')}</span>}
+                  </div>
+                  <span className="text-sm font-semibold text-zinc-100">
+                    ₩ {(inv.value / 10000).toLocaleString(undefined, { maximumFractionDigits: 0 })}만
+                  </span>
                 </div>
-                <p className="text-xs text-zinc-500">매월 25일 지급</p>
-              </div>
-
-              <div className="bg-zinc-950/50 rounded-xl p-4 border border-zinc-800/50 relative">
-                <div className="absolute -left-[1px] top-4 bottom-4 w-[2px] bg-orange-500 rounded-r-full" />
-                <div className="flex justify-between items-center mb-1">
-                  <p className="text-sm font-medium text-zinc-300 flex items-center gap-1.5">
-                    <ShieldAlert className="w-4 h-4 text-zinc-400" />
-                    담이 중학교 진학
-                  </p>
-                  <span className="text-orange-400 font-bold">D-{dDayDamMiddle}</span>
-                </div>
-                <p className="text-xs text-zinc-500">양육비 인상 예정 (총 160만 원)</p>
-              </div>
+              ))}
+              {topInvestments.length === 0 && (
+                <p className="text-sm text-zinc-500 text-center py-4">등록된 투자 자산이 없습니다.</p>
+              )}
             </CardContent>
           </Card>
-        </div>
+        </Link>
 
       </div>
     </div>
