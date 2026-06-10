@@ -1,377 +1,215 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import Link from "next/link";
 import { 
   ArrowUpRight, 
-  ArrowDownRight, 
-  DollarSign, 
-  CreditCard, 
-  Activity,
   Wallet,
-  ChevronLeft,
+  PieChart,
+  BrainCircuit,
+  Newspaper,
+  ExternalLink,
+  TrendingUp,
+  Building,
+  Landmark,
+  Coins,
   ChevronRight
 } from "lucide-react";
-import { 
-  Line, 
-  LineChart, 
-  ResponsiveContainer, 
-  Tooltip, 
-  XAxis, 
-  YAxis,
-  CartesianGrid
-} from "recharts";
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { supabase } from "@/lib/supabase";
-
-interface Transaction {
-  id: string;
-  date: string;
-  type: "EXPENSE" | "INCOME";
-  amount: number;
-  category: string;
-  card?: string;
-  installmentGroupId?: string;
-}
-
-interface MonthlyData {
-  name: string;
-  수입: number;
-  지출: number;
-}
 
 export default function Dashboard() {
-  const [connectionStatus, setConnectionStatus] = useState<"loading" | "connected" | "error">("loading");
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [expectedSalary, setExpectedSalary] = useState(0);
-  const [selectedMonth, setSelectedMonth] = useState(new Date());
-
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setConnectionStatus("loading");
-        const start = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() - 5, 1);
-        const end = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() + 1, 0, 23, 59, 59);
-
-        // 1. Fetch Transactions specifically for the selected 6-month window
-        const { data: txData, error: txError } = await supabase
-          .from("Transaction")
-          .select("id, date, type, amount, category, card, installmentGroupId")
-          .gte("date", start.toISOString())
-          .lte("date", end.toISOString())
-          .order("date", { ascending: true })
-          .limit(10000);
-
-        if (txError) {
-          console.error("Fetch error:", txError);
-          setConnectionStatus("error");
-          return;
-        }
-
-        setConnectionStatus("connected");
-        if (txData) {
-          setTransactions(txData);
-        }
-
-        // 2. Fetch User Settings (expectedSalary)
-        const { data: settings } = await supabase
-          .from("UserSetting")
-          .select("key, value")
-          .eq("key", "expectedSalary")
-          .single();
-          
-        if (settings && settings.value) {
-          setExpectedSalary(Number(settings.value));
-        }
-
-      } catch (err) {
-        console.error(err);
-        setConnectionStatus("error");
-      }
-    };
-
-    fetchData();
-  }, [selectedMonth]); // Refetch when selectedMonth changes
-
-  const { currentMonthIncome, currentMonthExpense, monthlyData, currentIncomeGroups, currentCardExpenseGroups, currentFixedExpenseGroups, fixedExpenseTotal, variableExpenseTotal } = useMemo(() => {
-    const monthlyAgg = new Map<string, { income: number; expense: number }>();
-    const targetMonthKey = `${selectedMonth.getFullYear()}-${String(selectedMonth.getMonth() + 1).padStart(2, '0')}`;
-    
-    const incomeGroups: Record<string, number> = {};
-    const cardExpenseGroups: Record<string, number> = {};
-    const fixedExpenseGroups: Record<string, number> = {};
-    let tempFixedExpenseTotal = 0;
-    let tempVariableExpenseTotal = 0;
-    
-    // Initialize strictly the last 6 months based on the SELECTED month
-    for (let i = 5; i >= 0; i--) {
-      const d = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() - i, 1);
-      const displayMonth = `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}`;
-      monthlyAgg.set(displayMonth, { income: 0, expense: 0 });
-    }
-    
-    let tempCurrentIncome = 0;
-    let tempCurrentExpense = 0;
-
-    transactions.forEach((tx: any) => {
-      if (!tx.date || !tx.type || tx.amount == null) return;
-
-      let dateObj = new Date(tx.date);
-      // Handle timestamp strings
-      if (isNaN(dateObj.getTime())) {
-        const numDate = Number(tx.date);
-        if (!isNaN(numDate)) {
-          dateObj = new Date(numDate > 9999999999 ? numDate : numDate * 1000);
-        }
-      }
-      
-      if (isNaN(dateObj.getTime())) return; // Skip if still invalid
-
-      const monthKey = `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}`;
-      const displayMonth = `${dateObj.getFullYear()}.${String(dateObj.getMonth() + 1).padStart(2, '0')}`;
-
-      // ONLY add data if it falls within our strictly initialized 6 months
-      if (monthlyAgg.has(displayMonth)) {
-        if (tx.category === "회사대출 공제") return; // Completely ignore from totals
-        
-        const currentObj = monthlyAgg.get(displayMonth)!;
-        const txType = String(tx.type).toUpperCase().trim();
-        const amount = Number(tx.amount);
-
-        if (txType === "INCOME" || txType === "수입") {
-          currentObj.income += amount;
-          if (monthKey === targetMonthKey) {
-            tempCurrentIncome += amount;
-            const cat = tx.category || "기타 수입";
-            incomeGroups[cat] = (incomeGroups[cat] || 0) + amount;
-          }
-        } else if (txType === "EXPENSE" || txType === "지출") {
-          currentObj.expense += amount;
-          if (monthKey === targetMonthKey) {
-            tempCurrentExpense += amount;
-            
-            const isFixed = 
-              (tx.installmentGroupId && tx.installmentGroupId.startsWith("fixed_")) ||
-              tx.category === "원리금(모기지)" ||
-              tx.category === "원리금(후순위)" ||
-              tx.category === "신용이자";
-
-            if (isFixed) {
-              tempFixedExpenseTotal += amount;
-              const fixedCat = tx.category || "기타 고정지출";
-              fixedExpenseGroups[fixedCat] = (fixedExpenseGroups[fixedCat] || 0) + amount;
-            } else {
-              tempVariableExpenseTotal += amount;
-            }
-            
-            // Card totals include BOTH fixed and variable
-            const cardName = tx.card || "현금/계좌";
-            cardExpenseGroups[cardName] = (cardExpenseGroups[cardName] || 0) + amount;
-          }
-        }
-      }
-    });
-
-    // Convert Map to Array for Recharts
-    const chartData: MonthlyData[] = Array.from(monthlyAgg.entries())
-      .map(([month, data]) => ({
-        name: month,
-        수입: data.income,
-        지출: data.expense
-      }));
-
-    // USER REQUESTED HARDCODED OVERRIDE FOR MAY 2026
-    if (selectedMonth.getFullYear() === 2026 && selectedMonth.getMonth() === 4) {
-      return {
-        currentMonthIncome: 4394655,
-        currentMonthExpense: 2242770 + 1915348,
-        monthlyData: chartData,
-        currentIncomeGroups: [],
-        currentCardExpenseGroups: [],
-        currentFixedExpenseGroups: [],
-        fixedExpenseTotal: 2242770,
-        variableExpenseTotal: 1915348
-      };
-    }
-
-    return { 
-      currentMonthIncome: tempCurrentIncome, 
-      currentMonthExpense: tempCurrentExpense, 
-      monthlyData: chartData,
-      currentIncomeGroups: Object.entries(incomeGroups).sort((a, b) => b[1] - a[1]),
-      currentCardExpenseGroups: Object.entries(cardExpenseGroups).sort((a, b) => b[1] - a[1]),
-      currentFixedExpenseGroups: Object.entries(fixedExpenseGroups).sort((a, b) => b[1] - a[1]),
-      fixedExpenseTotal: tempFixedExpenseTotal,
-      variableExpenseTotal: tempVariableExpenseTotal
-    };
-  }, [transactions, selectedMonth]);
-
-  const handlePrevMonth = () => {
-    setSelectedMonth(prev => {
-      const newDate = new Date(prev);
-      newDate.setMonth(newDate.getMonth() - 1);
-      return newDate;
-    });
-  };
-
-  const handleNextMonth = () => {
-    setSelectedMonth(prev => {
-      const newDate = new Date(prev);
-      newDate.setMonth(newDate.getMonth() + 1);
-      return newDate;
-    });
-  };
-
   return (
-    <div className="p-8 space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-1000">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="flex flex-col gap-2">
-          <h2 className="text-3xl font-bold tracking-tight text-white">대시보드</h2>
-          <div className="flex items-center text-sm text-zinc-400">
-            <div className={`w-2 h-2 rounded-full mr-2 ${connectionStatus === 'connected' ? 'bg-emerald-500' : connectionStatus === 'loading' ? 'bg-amber-500' : 'bg-rose-500'}`} />
-            {connectionStatus === 'connected' ? '데이터 동기화 완료 (money-manager)' : connectionStatus === 'loading' ? '데이터 불러오는 중...' : '데이터 연결 오류'}
-          </div>
+    <div className="flex-1 space-y-6 md:space-y-8 pb-10">
+      {/* Header section */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4">
+        <div>
+          <h1 className="text-3xl font-extrabold tracking-tight text-white mb-1">
+            Wealth Hub
+          </h1>
+          <p className="text-zinc-400 text-sm max-w-xl">
+            자산 포트폴리오, 인공지능 투자 인사이트, 실시간 경제 뉴스를 한 곳에서 관리하세요.
+          </p>
         </div>
-
-        {/* Month Selector */}
-        <div className="flex items-center gap-4 bg-zinc-900/50 border border-zinc-800 rounded-full px-4 py-2 backdrop-blur-xl">
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            onClick={handlePrevMonth} 
-            disabled={selectedMonth.getFullYear() === 2026 && selectedMonth.getMonth() === 3}
-            className="text-zinc-400 hover:text-white disabled:opacity-30 disabled:hover:text-zinc-400"
+        <div className="flex items-center gap-3">
+          <a 
+            href="http://ghqlt0116.iptime.org:3000" 
+            target="_blank" 
+            rel="noopener noreferrer"
           >
-            <ChevronLeft className="w-5 h-5" />
-          </Button>
-          <span className="text-white font-medium min-w-[100px] text-center">
-            {selectedMonth.getFullYear()}년 {selectedMonth.getMonth() + 1}월
-          </span>
-          <button 
-            onClick={handleNextMonth}
-            className="p-1 hover:bg-zinc-800 rounded-full transition-colors text-zinc-400 hover:text-white"
-          >
-            <ChevronRight className="w-5 h-5" />
-          </button>
+            <Button className="bg-sky-500/10 text-sky-400 hover:bg-sky-500/20 border border-sky-500/20 font-medium flex items-center gap-2">
+              <ExternalLink className="w-4 h-4" />
+              가계부 열기
+            </Button>
+          </a>
         </div>
       </div>
 
-      {/* Summary Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card className="bg-zinc-900/50 border-zinc-800 backdrop-blur-xl hover:bg-zinc-900/80 transition-all">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-zinc-400">총 자산 (Portfolio)</CardTitle>
-            <Wallet className="h-4 w-4 text-emerald-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-white">₩ 0</div>
-            <p className="text-xs text-zinc-500 flex items-center mt-1">
-              포트폴리오 메뉴에서 자산을 추가해주세요.
-            </p>
-          </CardContent>
-        </Card>
-        
-        <Card className="bg-zinc-900/50 border-zinc-800 backdrop-blur-xl">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-zinc-400">이번 달 수입</CardTitle>
-            <DollarSign className="h-4 w-4 text-sky-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-white">₩ {currentMonthIncome.toLocaleString()}</div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-zinc-900/50 border-zinc-800 backdrop-blur-xl">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-zinc-400">이번 달 지출</CardTitle>
-            <CreditCard className="h-4 w-4 text-rose-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-white">₩ {currentMonthExpense.toLocaleString()}</div>
-            <div className="mt-2 space-y-1">
-              <p className="text-xs text-rose-400/80">고정: ₩ {fixedExpenseTotal.toLocaleString()}</p>
-              <p className="text-xs text-orange-400/80">변동: ₩ {variableExpenseTotal.toLocaleString()}</p>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-zinc-900/50 border-zinc-800 backdrop-blur-xl hover:bg-zinc-900/80 transition-all">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-zinc-400">AI 투자 인사이트</CardTitle>
-            <Activity className="h-4 w-4 text-purple-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-white">분석 준비됨</div>
-            <p className="text-xs text-zinc-400 mt-1">최신 글로벌 금융 뉴스 기반</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Charts Section */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
-        <Card className="col-span-4 bg-zinc-900/50 border-zinc-800 backdrop-blur-xl">
-          <CardHeader>
-            <CardTitle className="text-white">월별 현금 흐름 (수입/지출)</CardTitle>
-            <CardDescription className="text-zinc-400">
-              최근 발생한 수입 및 지출 추이
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="pl-2">
-            {monthlyData.length > 0 ? (
-              <div className="h-[300px] w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={monthlyData} margin={{ top: 5, right: 10, left: 10, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
-                    <XAxis 
-                      dataKey="name" 
-                      stroke="#a1a1aa" 
-                      fontSize={12} 
-                      tickLine={false} 
-                      axisLine={false} 
-                    />
-                    <YAxis 
-                      stroke="#a1a1aa" 
-                      fontSize={12} 
-                      tickLine={false} 
-                      axisLine={false} 
-                      tickFormatter={(value) => `₩${(value / 10000).toFixed(0)}만`} 
-                      width={60}
-                    />
-                    <Tooltip 
-                      contentStyle={{ backgroundColor: '#18181b', borderColor: '#27272a', color: '#fff', borderRadius: '8px' }}
-                      itemStyle={{ color: '#fff' }}
-                      formatter={(value: any) => [`₩ ${Number(value).toLocaleString()}`, undefined]}
-                    />
-                    <Line type="monotone" dataKey="수입" stroke="#0ea5e9" strokeWidth={3} dot={{ r: 4 }} activeDot={{ r: 6 }} />
-                    <Line type="monotone" dataKey="지출" stroke="#f43f5e" strokeWidth={3} dot={{ r: 4 }} activeDot={{ r: 6 }} />
-                  </LineChart>
-                </ResponsiveContainer>
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        {/* Portfolio Overview Widget */}
+        <Link href="/portfolio" className="lg:col-span-2 group">
+          <Card className="h-full bg-zinc-900/50 border-zinc-800 backdrop-blur-xl group-hover:border-emerald-500/30 group-hover:bg-zinc-900/80 transition-all duration-300 relative overflow-hidden">
+            <div className="absolute top-0 right-0 p-32 bg-emerald-500/5 rounded-full blur-3xl -mr-16 -mt-16 transition-all duration-500 group-hover:bg-emerald-500/10" />
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle className="flex items-center gap-2 text-zinc-100">
+                  <Wallet className="w-5 h-5 text-emerald-400" />
+                  자산 포트폴리오 요약
+                </CardTitle>
+                <ArrowUpRight className="w-5 h-5 text-zinc-500 group-hover:text-emerald-400 transition-colors" />
               </div>
-            ) : (
-              <div className="h-[300px] flex items-center justify-center text-zinc-500">
-                {connectionStatus === 'loading' ? '데이터 로딩 중...' : '표시할 데이터가 없습니다.'}
+              <CardDescription className="text-zinc-400">등록된 전체 자산의 현황을 확인합니다.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="mt-2 mb-6">
+                <p className="text-sm font-medium text-zinc-500 mb-1">총 자산 평가액</p>
+                <div className="flex items-baseline gap-2">
+                  <h2 className="text-4xl font-black text-white tracking-tight">₩ 0</h2>
+                  <span className="text-sm text-emerald-400 font-medium bg-emerald-400/10 px-2 py-0.5 rounded-full">+0.0%</span>
+                </div>
               </div>
-            )}
-          </CardContent>
-        </Card>
 
-        <Card className="col-span-3 bg-zinc-900/50 border-zinc-800 backdrop-blur-xl">
-          <CardHeader>
-            <CardTitle className="text-white">자산 비중 (Portfolio)</CardTitle>
-            <CardDescription className="text-zinc-400">
-              현재 등록된 자산군 비율
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="h-[300px] w-full flex items-center justify-center text-zinc-500 flex-col">
-              <Wallet className="h-12 w-12 mb-4 opacity-50" />
-              <p>자산 데이터가 없습니다.</p>
-              <p className="text-sm mt-2 text-zinc-600">포트폴리오 메뉴에서 자산을 추가해주세요.</p>
-            </div>
-          </CardContent>
-        </Card>
+              <div className="grid grid-cols-3 gap-4 border-t border-zinc-800 pt-5 mt-5">
+                <div>
+                  <div className="flex items-center gap-2 text-sm text-zinc-400 mb-1">
+                    <Building className="w-3.5 h-3.5" />
+                    부동산
+                  </div>
+                  <p className="font-semibold text-zinc-200">₩ 0</p>
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 text-sm text-zinc-400 mb-1">
+                    <TrendingUp className="w-3.5 h-3.5" />
+                    주식/펀드
+                  </div>
+                  <p className="font-semibold text-zinc-200">₩ 0</p>
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 text-sm text-zinc-400 mb-1">
+                    <Landmark className="w-3.5 h-3.5" />
+                    현금성 자산
+                  </div>
+                  <p className="font-semibold text-zinc-200">₩ 0</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </Link>
+
+        {/* AI Insights Widget */}
+        <Link href="/ai-insights" className="group">
+          <Card className="h-full bg-zinc-900/50 border-zinc-800 backdrop-blur-xl group-hover:border-indigo-500/30 group-hover:bg-zinc-900/80 transition-all duration-300 relative overflow-hidden flex flex-col">
+            <div className="absolute top-0 right-0 p-32 bg-indigo-500/5 rounded-full blur-3xl -mr-16 -mt-16 transition-all duration-500 group-hover:bg-indigo-500/10" />
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle className="flex items-center gap-2 text-zinc-100">
+                  <BrainCircuit className="w-5 h-5 text-indigo-400" />
+                  AI 투자 인사이트
+                </CardTitle>
+                <ArrowUpRight className="w-5 h-5 text-zinc-500 group-hover:text-indigo-400 transition-colors" />
+              </div>
+            </CardHeader>
+            <CardContent className="flex-1 flex flex-col justify-center">
+              <div className="bg-zinc-950/50 rounded-xl p-4 border border-zinc-800/50 relative">
+                <div className="absolute -left-[1px] top-4 bottom-4 w-[2px] bg-indigo-500 rounded-r-full" />
+                <p className="text-sm text-zinc-300 leading-relaxed">
+                  "현재 시장의 변동성이 큽니다. 현금 비중을 20% 이상 유지하며, 기술주 위주의 포트폴리오를 점검해 볼 시점입니다."
+                </p>
+                <div className="mt-3 flex items-center justify-between">
+                  <span className="text-xs text-zinc-500">최근 업데이트</span>
+                  <div className="flex gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse" />
+                    <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse delay-75" />
+                    <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse delay-150" />
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </Link>
+
+        {/* Market News Widget */}
+        <Link href="/news" className="group lg:col-span-2">
+          <Card className="h-full bg-zinc-900/50 border-zinc-800 backdrop-blur-xl group-hover:border-sky-500/30 group-hover:bg-zinc-900/80 transition-all duration-300">
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <CardTitle className="flex items-center gap-2 text-zinc-100">
+                  <Newspaper className="w-5 h-5 text-sky-400" />
+                  실시간 마켓 뉴스
+                </CardTitle>
+                <ArrowUpRight className="w-5 h-5 text-zinc-500 group-hover:text-sky-400 transition-colors" />
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {[
+                  {
+                    title: "연준, 금리 동결 발표... 향후 금리 인하 시점에 대한 시장의 예측 엇갈려",
+                    source: "글로벌 마켓",
+                    time: "1시간 전",
+                  },
+                  {
+                    title: "나스닥 1.5% 상승 마감, AI 관련주 실적 호조에 기술주 랠리 주도",
+                    source: "테크 인베스트",
+                    time: "3시간 전",
+                  }
+                ].map((news, i) => (
+                  <div key={i} className="group/news flex gap-4 p-3 rounded-lg hover:bg-zinc-800/50 transition-colors border border-transparent hover:border-zinc-700/50 cursor-pointer">
+                    <div className="w-12 h-12 rounded-md bg-zinc-800 flex items-center justify-center flex-shrink-0">
+                      <Newspaper className="w-5 h-5 text-zinc-500" />
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-medium text-zinc-200 group-hover/news:text-sky-400 transition-colors line-clamp-1">{news.title}</h4>
+                      <div className="flex items-center gap-2 mt-1 text-xs text-zinc-500">
+                        <span>{news.source}</span>
+                        <span>•</span>
+                        <span>{news.time}</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </Link>
+
+        {/* Action Widgets */}
+        <div className="space-y-6">
+          <Link href="/portfolio" className="block group">
+            <Card className="bg-zinc-900/50 border-zinc-800 backdrop-blur-xl group-hover:bg-zinc-800 transition-all duration-300">
+              <CardContent className="p-6 flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-full bg-emerald-500/10 flex items-center justify-center">
+                    <PieChart className="w-6 h-6 text-emerald-400" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-white">포트폴리오 설정</h3>
+                    <p className="text-sm text-zinc-400 mt-0.5">자산 비중 재분배</p>
+                  </div>
+                </div>
+                <ChevronRight className="w-5 h-5 text-zinc-600 group-hover:text-emerald-400 transition-colors" />
+              </CardContent>
+            </Card>
+          </Link>
+          
+          <a href="http://ghqlt0116.iptime.org:3000" target="_blank" rel="noopener noreferrer" className="block group">
+            <Card className="bg-gradient-to-br from-zinc-900 to-zinc-950 border-zinc-800 hover:border-sky-500/30 transition-all duration-300">
+              <CardContent className="p-6 flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-full bg-sky-500/10 flex items-center justify-center">
+                    <Coins className="w-6 h-6 text-sky-400" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-white">가계부 바로가기</h3>
+                    <p className="text-sm text-zinc-400 mt-0.5">상세 수입/지출 내역 확인</p>
+                  </div>
+                </div>
+                <ExternalLink className="w-5 h-5 text-zinc-600 group-hover:text-sky-400 transition-colors" />
+              </CardContent>
+            </Card>
+          </a>
+        </div>
+
       </div>
     </div>
   );
