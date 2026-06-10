@@ -99,7 +99,8 @@ export default function Dashboard() {
     const targetMonthKey = `${selectedMonth.getFullYear()}-${String(selectedMonth.getMonth() + 1).padStart(2, '0')}`;
     
     const incomeGroups: Record<string, number> = {};
-    const expenseGroups: Record<string, number> = {};
+    const variableExpenseGroups: Record<string, number> = {};
+    const fixedExpenseGroups: Record<string, number> = {};
     let tempFixedExpenseTotal = 0;
     
     // Initialize strictly the last 6 months based on the SELECTED month
@@ -148,9 +149,11 @@ export default function Dashboard() {
             tempCurrentExpense += amount;
             if (tx.installmentGroupId && tx.installmentGroupId.startsWith("fixed_")) {
               tempFixedExpenseTotal += amount;
+              const fixedCat = tx.category || "기타 고정지출";
+              fixedExpenseGroups[fixedCat] = (fixedExpenseGroups[fixedCat] || 0) + amount;
             } else {
               const cardName = tx.card || "현금/기타";
-              expenseGroups[cardName] = (expenseGroups[cardName] || 0) + amount;
+              variableExpenseGroups[cardName] = (variableExpenseGroups[cardName] || 0) + amount;
             }
           }
         }
@@ -170,7 +173,8 @@ export default function Dashboard() {
       currentMonthExpense: tempCurrentExpense, 
       monthlyData: chartData,
       currentIncomeGroups: Object.entries(incomeGroups).sort((a, b) => b[1] - a[1]),
-      currentExpenseGroups: Object.entries(expenseGroups).sort((a, b) => b[1] - a[1]),
+      currentVariableExpenseGroups: Object.entries(variableExpenseGroups).sort((a, b) => b[1] - a[1]),
+      currentFixedExpenseGroups: Object.entries(fixedExpenseGroups).sort((a, b) => b[1] - a[1]),
       fixedExpenseTotal: tempFixedExpenseTotal
     };
   }, [transactions, selectedMonth]);
@@ -288,19 +292,38 @@ export default function Dashboard() {
             <DialogHeader>
               <DialogTitle>이번 달 지출 내역 (고정지출 포함)</DialogTitle>
             </DialogHeader>
-            <div className="space-y-4 mt-4">
+            <div className="space-y-6 mt-4">
               {fixedExpenseTotal > 0 && (
-                <div className="flex justify-between items-center border-b border-zinc-800 pb-2">
-                  <p className="font-medium text-rose-400">📌 고정 지출 총합</p>
-                  <p className="text-rose-500 font-bold">-₩ {fixedExpenseTotal.toLocaleString()}</p>
+                <div>
+                  <div className="flex justify-between items-center border-b border-zinc-700 pb-2 mb-3">
+                    <p className="font-bold text-rose-400">📌 고정 지출 (총 ₩ {fixedExpenseTotal.toLocaleString()})</p>
+                  </div>
+                  <div className="space-y-2 pl-2">
+                    {currentFixedExpenseGroups.map(([cat, total]) => (
+                      <div key={cat} className="flex justify-between items-center">
+                        <p className="font-medium text-zinc-400">- {cat}</p>
+                        <p className="text-rose-400/80 text-sm font-medium">-₩ {total.toLocaleString()}</p>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
-              {currentExpenseGroups.length > 0 ? currentExpenseGroups.map(([card, total]) => (
-                <div key={card} className="flex justify-between items-center border-b border-zinc-800 pb-2">
-                  <p className="font-medium text-zinc-300">💳 {card}</p>
-                  <p className="text-rose-500 font-bold">-₩ {total.toLocaleString()}</p>
+              {currentVariableExpenseGroups.length > 0 && (
+                <div>
+                  <div className="flex justify-between items-center border-b border-zinc-700 pb-2 mb-3">
+                    <p className="font-bold text-zinc-300">💳 카드 / 변동 지출</p>
+                  </div>
+                  <div className="space-y-2 pl-2">
+                    {currentVariableExpenseGroups.map(([card, total]) => (
+                      <div key={card} className="flex justify-between items-center">
+                        <p className="font-medium text-zinc-400">- {card}</p>
+                        <p className="text-rose-400/80 text-sm font-medium">-₩ {total.toLocaleString()}</p>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              )) : fixedExpenseTotal === 0 && (
+              )}
+              {fixedExpenseTotal === 0 && currentVariableExpenseGroups.length === 0 && (
                 <p className="text-zinc-500 text-sm text-center py-4">이번 달 지출 내역이 없습니다.</p>
               )}
             </div>
