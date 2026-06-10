@@ -47,16 +47,18 @@ export default function Dashboard() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const now = new Date();
-        const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 5, 1);
-        const endOfThisMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+        setConnectionStatus("loading");
+        const start = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() - 5, 1);
+        const end = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() + 1, 0, 23, 59, 59);
 
-        // 1. Fetch Transactions
+        // 1. Fetch Transactions specifically for the selected 6-month window
         const { data: txData, error: txError } = await supabase
           .from("Transaction")
           .select("id, date, type, amount, category")
-          .order("date", { ascending: false })
-          .limit(5000);
+          .gte("date", start.toISOString())
+          .lte("date", end.toISOString())
+          .order("date", { ascending: true })
+          .limit(1000);
 
         if (txError) {
           console.error("Fetch error:", txError);
@@ -87,14 +89,13 @@ export default function Dashboard() {
     };
 
     fetchData();
-  }, []);
+  }, [selectedMonth]); // Refetch when selectedMonth changes
 
   const { currentMonthIncome, currentMonthExpense, monthlyData } = useMemo(() => {
-    const now = new Date();
     const monthlyAgg = new Map<string, { income: number; expense: number }>();
     const targetMonthKey = `${selectedMonth.getFullYear()}-${String(selectedMonth.getMonth() + 1).padStart(2, '0')}`;
     
-    // Initialize exactly the last 6 months based on the SELECTED month so the chart always looks clean
+    // Initialize strictly the last 6 months based on the SELECTED month
     for (let i = 5; i >= 0; i--) {
       const d = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() - i, 1);
       const displayMonth = `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}`;
@@ -119,22 +120,21 @@ export default function Dashboard() {
       if (isNaN(dateObj.getTime())) return; // Skip if still invalid
 
       const monthKey = `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}`;
-      const displayMonth = `${dateObj.getFullYear()}.${String(dateObj.getMonth() + 1).padStart(2, '0')}`; // For chart display e.g. 2026.08
+      const displayMonth = `${dateObj.getFullYear()}.${String(dateObj.getMonth() + 1).padStart(2, '0')}`;
 
-      if (!monthlyAgg.has(displayMonth)) {
-        monthlyAgg.set(displayMonth, { income: 0, expense: 0 });
-      }
+      // ONLY add data if it falls within our strictly initialized 6 months
+      if (monthlyAgg.has(displayMonth)) {
+        const currentObj = monthlyAgg.get(displayMonth)!;
+        const txType = String(tx.type).toUpperCase().trim();
+        const amount = Number(tx.amount);
 
-      const currentObj = monthlyAgg.get(displayMonth)!;
-      const txType = String(tx.type).toUpperCase().trim();
-      const amount = Number(tx.amount);
-
-      if (txType === "INCOME" || txType === "수입") {
-        currentObj.income += amount;
-        if (monthKey === targetMonthKey) tempCurrentIncome += amount;
-      } else if (txType === "EXPENSE" || txType === "지출") {
-        currentObj.expense += amount;
-        if (monthKey === targetMonthKey) tempCurrentExpense += amount;
+        if (txType === "INCOME" || txType === "수입") {
+          currentObj.income += amount;
+          if (monthKey === targetMonthKey) tempCurrentIncome += amount;
+        } else if (txType === "EXPENSE" || txType === "지출") {
+          currentObj.expense += amount;
+          if (monthKey === targetMonthKey) tempCurrentExpense += amount;
+        }
       }
     });
 
