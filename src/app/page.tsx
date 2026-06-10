@@ -23,6 +23,7 @@ import {
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 import { supabase } from "@/lib/supabase";
 
 interface Transaction {
@@ -94,14 +95,15 @@ export default function Dashboard() {
     fetchData();
   }, [selectedMonth]); // Refetch when selectedMonth changes
 
-  const { currentMonthIncome, currentMonthExpense, monthlyData, currentIncomeGroups, currentVariableExpenseGroups, currentFixedExpenseGroups, fixedExpenseTotal } = useMemo(() => {
+  const { currentMonthIncome, currentMonthExpense, monthlyData, currentIncomeGroups, currentCardExpenseGroups, currentFixedExpenseGroups, fixedExpenseTotal, variableExpenseTotal } = useMemo(() => {
     const monthlyAgg = new Map<string, { income: number; expense: number }>();
     const targetMonthKey = `${selectedMonth.getFullYear()}-${String(selectedMonth.getMonth() + 1).padStart(2, '0')}`;
     
     const incomeGroups: Record<string, number> = {};
-    const variableExpenseGroups: Record<string, number> = {};
+    const cardExpenseGroups: Record<string, number> = {};
     const fixedExpenseGroups: Record<string, number> = {};
     let tempFixedExpenseTotal = 0;
+    let tempVariableExpenseTotal = 0;
     
     // Initialize strictly the last 6 months based on the SELECTED month
     for (let i = 5; i >= 0; i--) {
@@ -132,6 +134,8 @@ export default function Dashboard() {
 
       // ONLY add data if it falls within our strictly initialized 6 months
       if (monthlyAgg.has(displayMonth)) {
+        if (tx.category === "회사대출 공제") return; // Completely ignore from totals
+        
         const currentObj = monthlyAgg.get(displayMonth)!;
         const txType = String(tx.type).toUpperCase().trim();
         const amount = Number(tx.amount);
@@ -147,16 +151,24 @@ export default function Dashboard() {
           currentObj.expense += amount;
           if (monthKey === targetMonthKey) {
             tempCurrentExpense += amount;
-            if (tx.installmentGroupId && tx.installmentGroupId.startsWith("fixed_")) {
+            
+            const isFixed = 
+              (tx.installmentGroupId && tx.installmentGroupId.startsWith("fixed_")) ||
+              tx.category === "원리금(모기지)" ||
+              tx.category === "원리금(후순위)" ||
+              tx.category === "신용이자";
+
+            if (isFixed) {
               tempFixedExpenseTotal += amount;
               const fixedCat = tx.category || "기타 고정지출";
-              const cardName = tx.card ? ` (${tx.card})` : "";
-              const label = `${fixedCat}${cardName}`;
-              fixedExpenseGroups[label] = (fixedExpenseGroups[label] || 0) + amount;
+              fixedExpenseGroups[fixedCat] = (fixedExpenseGroups[fixedCat] || 0) + amount;
             } else {
-              const cardName = tx.card || "현금/기타";
-              variableExpenseGroups[cardName] = (variableExpenseGroups[cardName] || 0) + amount;
+              tempVariableExpenseTotal += amount;
             }
+            
+            // Card totals include BOTH fixed and variable
+            const cardName = tx.card || "현금/계좌";
+            cardExpenseGroups[cardName] = (cardExpenseGroups[cardName] || 0) + amount;
           }
         }
       }
@@ -175,9 +187,10 @@ export default function Dashboard() {
       currentMonthExpense: tempCurrentExpense, 
       monthlyData: chartData,
       currentIncomeGroups: Object.entries(incomeGroups).sort((a, b) => b[1] - a[1]),
-      currentVariableExpenseGroups: Object.entries(variableExpenseGroups).sort((a, b) => b[1] - a[1]),
+      currentCardExpenseGroups: Object.entries(cardExpenseGroups).sort((a, b) => b[1] - a[1]),
       currentFixedExpenseGroups: Object.entries(fixedExpenseGroups).sort((a, b) => b[1] - a[1]),
-      fixedExpenseTotal: tempFixedExpenseTotal
+      fixedExpenseTotal: tempFixedExpenseTotal,
+      variableExpenseTotal: tempVariableExpenseTotal
     };
   }, [transactions, selectedMonth]);
 
@@ -210,12 +223,15 @@ export default function Dashboard() {
 
         {/* Month Selector */}
         <div className="flex items-center gap-4 bg-zinc-900/50 border border-zinc-800 rounded-full px-4 py-2 backdrop-blur-xl">
-          <button 
-            onClick={handlePrevMonth}
-            className="p-1 hover:bg-zinc-800 rounded-full transition-colors text-zinc-400 hover:text-white"
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            onClick={handlePrevMonth} 
+            disabled={selectedMonth.getFullYear() === 2026 && selectedMonth.getMonth() === 3}
+            className="text-zinc-400 hover:text-white disabled:opacity-30 disabled:hover:text-zinc-400"
           >
             <ChevronLeft className="w-5 h-5" />
-          </button>
+          </Button>
           <span className="text-white font-medium min-w-[100px] text-center">
             {selectedMonth.getFullYear()}년 {selectedMonth.getMonth() + 1}월
           </span>
@@ -298,7 +314,7 @@ export default function Dashboard() {
               {fixedExpenseTotal > 0 && (
                 <div>
                   <div className="flex justify-between items-center border-b border-zinc-700 pb-2 mb-3">
-                    <p className="font-bold text-rose-400">📌 고정 지출 (총 ₩ {fixedExpenseTotal.toLocaleString()})</p>
+                    <p className="font-bold text-rose-400">📌 핵심 금융/고정 지출 (총 ₩ {fixedExpenseTotal.toLocaleString()})</p>
                   </div>
                   <div className="space-y-2 pl-2">
                     {currentFixedExpenseGroups.map(([cat, total]) => (
@@ -310,22 +326,29 @@ export default function Dashboard() {
                   </div>
                 </div>
               )}
-              {currentVariableExpenseGroups.length > 0 && (
+              {variableExpenseTotal > 0 && (
                 <div>
                   <div className="flex justify-between items-center border-b border-zinc-700 pb-2 mb-3">
-                    <p className="font-bold text-zinc-300">💳 카드 / 변동 지출</p>
+                    <p className="font-bold text-orange-400">💸 생활/변동 지출 (총 ₩ {variableExpenseTotal.toLocaleString()})</p>
+                  </div>
+                </div>
+              )}
+              {currentCardExpenseGroups.length > 0 && (
+                <div>
+                  <div className="flex justify-between items-center border-b border-zinc-700 pb-2 mb-3">
+                    <p className="font-bold text-zinc-300">💳 카드/현금 사용 실적 (고정+변동)</p>
                   </div>
                   <div className="space-y-2 pl-2">
-                    {currentVariableExpenseGroups.map(([card, total]) => (
+                    {currentCardExpenseGroups.map(([card, total]) => (
                       <div key={card} className="flex justify-between items-center">
                         <p className="font-medium text-zinc-400">- {card}</p>
-                        <p className="text-rose-400/80 text-sm font-medium">-₩ {total.toLocaleString()}</p>
+                        <p className="text-zinc-300 text-sm font-medium">₩ {total.toLocaleString()}</p>
                       </div>
                     ))}
                   </div>
                 </div>
               )}
-              {fixedExpenseTotal === 0 && currentVariableExpenseGroups.length === 0 && (
+              {fixedExpenseTotal === 0 && currentCardExpenseGroups.length === 0 && (
                 <p className="text-zinc-500 text-sm text-center py-4">이번 달 지출 내역이 없습니다.</p>
               )}
             </div>
