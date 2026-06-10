@@ -61,7 +61,7 @@ export default function Dashboard() {
           .gte("date", start.toISOString())
           .lte("date", end.toISOString())
           .order("date", { ascending: true })
-          .limit(1000);
+          .limit(10000);
 
         if (txError) {
           console.error("Fetch error:", txError);
@@ -150,7 +150,9 @@ export default function Dashboard() {
             if (tx.installmentGroupId && tx.installmentGroupId.startsWith("fixed_")) {
               tempFixedExpenseTotal += amount;
               const fixedCat = tx.category || "기타 고정지출";
-              fixedExpenseGroups[fixedCat] = (fixedExpenseGroups[fixedCat] || 0) + amount;
+              const cardName = tx.card ? ` (${tx.card})` : "";
+              const label = `${fixedCat}${cardName}`;
+              fixedExpenseGroups[label] = (fixedExpenseGroups[label] || 0) + amount;
             } else {
               const cardName = tx.card || "현금/기타";
               variableExpenseGroups[cardName] = (variableExpenseGroups[cardName] || 0) + amount;
