@@ -74,7 +74,7 @@ export default function Dashboard() {
             Wealth Hub
           </h1>
           <p className="text-zinc-400 text-sm max-w-xl">
-            순자산 현황과 장기적 현금흐름, 그리고 아이들을 위한 플랜을 모니터링합니다.
+            순자산 현황과 장기적인 현금흐름 및 투자 포트폴리오를 통합 관리합니다.
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -82,11 +82,10 @@ export default function Dashboard() {
             href="http://ghqlt0116.iptime.org:3000" 
             target="_blank" 
             rel="noopener noreferrer"
+            className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 h-10 px-4 py-2 bg-sky-500/10 text-sky-400 hover:bg-sky-500/20 border border-sky-500/20 font-medium gap-2"
           >
-            <Button className="bg-sky-500/10 text-sky-400 hover:bg-sky-500/20 border border-sky-500/20 font-medium flex items-center gap-2">
-              <ExternalLink className="w-4 h-4" />
-              가계부 열기
-            </Button>
+            <ExternalLink className="w-4 h-4" />
+            가계부 열기
           </a>
         </div>
       </div>
@@ -150,12 +149,49 @@ export default function Dashboard() {
             </CardContent>
           </Card>
         </Link>
+        
+         {/* Action Widgets */}
+        <div className="space-y-6">
+          <Link href="/portfolio" className="block group">
+            <Card className="bg-zinc-900/50 border-zinc-800 backdrop-blur-xl group-hover:bg-zinc-800 transition-all duration-300">
+              <CardContent className="p-6 flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-full bg-emerald-500/10 flex items-center justify-center">
+                    <PieChart className="w-6 h-6 text-emerald-400" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-white">포트폴리오 설정</h3>
+                    <p className="text-sm text-zinc-400 mt-0.5">자산 비중 재분배 및 등록</p>
+                  </div>
+                </div>
+                <ChevronRight className="w-5 h-5 text-zinc-600 group-hover:text-emerald-400 transition-colors" />
+              </CardContent>
+            </Card>
+          </Link>
+          
+          <a href="http://ghqlt0116.iptime.org:3000" target="_blank" rel="noopener noreferrer" className="block group">
+            <Card className="bg-gradient-to-br from-zinc-900 to-zinc-950 border-zinc-800 hover:border-sky-500/30 transition-all duration-300">
+              <CardContent className="p-6 flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-full bg-sky-500/10 flex items-center justify-center">
+                    <Coins className="w-6 h-6 text-sky-400" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-white">가계부 바로가기</h3>
+                    <p className="text-sm text-zinc-400 mt-0.5">상세 수입/지출 내역 확인</p>
+                  </div>
+                </div>
+                <ExternalLink className="w-5 h-5 text-zinc-600 group-hover:text-sky-400 transition-colors" />
+              </CardContent>
+            </Card>
+          </a>
+        </div>
 
-        {/* Top Investments Widget */}
-        <Link href="/portfolio" className="group">
+        {/* Top Investments Widget - Moved to Bottom */}
+        <Link href="/portfolio" className="group lg:col-span-3">
           <Card className="h-full bg-zinc-900/50 border-zinc-800 backdrop-blur-xl group-hover:border-blue-500/30 transition-all duration-300 relative overflow-hidden flex flex-col">
             <div className="absolute top-0 right-0 p-32 bg-blue-500/5 rounded-full blur-3xl -mr-16 -mt-16 transition-all duration-500 group-hover:bg-blue-500/10" />
-            <CardHeader className="pb-3">
+            <CardHeader className="pb-4">
               <div className="flex items-center justify-between">
                 <CardTitle className="flex items-center gap-2 text-zinc-100">
                   <Star className="w-5 h-5 text-blue-400" />
@@ -164,25 +200,26 @@ export default function Dashboard() {
                 <ArrowUpRight className="w-5 h-5 text-zinc-500 group-hover:text-blue-400 transition-colors" />
               </div>
             </CardHeader>
-            <CardContent className="flex-1 flex flex-col justify-center space-y-3">
+            <CardContent className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               {topInvestments.map((inv, idx) => (
-                <div key={idx} className="bg-zinc-950/50 rounded-lg p-3 border border-zinc-800/50 flex justify-between items-center group/item hover:border-zinc-700 transition-colors">
-                  <div>
-                    <h4 className="text-sm font-medium text-zinc-200 line-clamp-1 group-hover/item:text-blue-400 transition-colors">{inv.name}</h4>
-                    {inv.ticker && <span className="text-xs text-zinc-500">{inv.ticker.replace('.KS', '')}</span>}
+                <div key={idx} className="bg-zinc-950/50 rounded-lg p-4 border border-zinc-800/50 flex flex-col justify-between group/item hover:border-zinc-700 transition-colors h-24">
+                  <div className="flex justify-between items-start">
+                    <h4 className="text-sm font-medium text-zinc-200 line-clamp-2 group-hover/item:text-blue-400 transition-colors pr-2 leading-tight">{inv.name}</h4>
+                    {inv.ticker && <span className="text-xs font-mono text-zinc-500 bg-zinc-900 px-1.5 py-0.5 rounded flex-shrink-0">{inv.ticker.replace('.KS', '')}</span>}
                   </div>
-                  <span className="text-sm font-semibold text-zinc-100">
-                    ₩ {(inv.value / 10000).toLocaleString(undefined, { maximumFractionDigits: 0 })}만
-                  </span>
+                  <div className="mt-auto pt-2">
+                    <span className="text-lg font-bold text-zinc-100 tracking-tight">
+                      ₩ {(inv.value / 10000).toLocaleString(undefined, { maximumFractionDigits: 0 })}만
+                    </span>
+                  </div>
                 </div>
               ))}
               {topInvestments.length === 0 && (
-                <p className="text-sm text-zinc-500 text-center py-4">등록된 투자 자산이 없습니다.</p>
+                <p className="text-sm text-zinc-500 text-center py-4 col-span-full">등록된 투자 자산이 없습니다.</p>
               )}
             </CardContent>
           </Card>
         </Link>
-
       </div>
     </div>
   );

@@ -6,9 +6,8 @@ const client = new Client({
 
 async function run() {
   await client.connect();
-  await client.query('ALTER TABLE "public"."Asset" DISABLE ROW LEVEL SECURITY;');
-  await client.query('ALTER TABLE "public"."Debt" DISABLE ROW LEVEL SECURITY;');
-  console.log("RLS disabled.");
+  const res = await client.query('SELECT count(*) FROM "Asset"');
+  console.log("DB count:", res.rows[0].count);
   await client.end();
 }
 run();
