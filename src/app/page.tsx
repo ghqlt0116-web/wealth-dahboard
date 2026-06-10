@@ -259,101 +259,29 @@ export default function Dashboard() {
           </CardContent>
         </Card>
         
-        <Dialog>
-          <DialogTrigger render={<div className="cursor-pointer group h-full" />}>
-            <Card className="h-full bg-zinc-900/50 border-zinc-800 backdrop-blur-xl group-hover:bg-zinc-800/80 transition-all">
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium text-zinc-400">이번 달 수입</CardTitle>
-                <DollarSign className="h-4 w-4 text-sky-500" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-white">₩ {currentMonthIncome.toLocaleString()}</div>
-                <p className="text-xs text-zinc-500 flex items-center mt-1 group-hover:text-sky-400 transition-colors">
-                  클릭하여 내역 보기 👆
-                </p>
-              </CardContent>
-            </Card>
-          </DialogTrigger>
-          <DialogContent className="bg-zinc-950 border-zinc-800 text-white max-h-[80vh] overflow-y-auto w-[90vw] sm:max-w-[425px]">
-            <DialogHeader>
-              <DialogTitle>이번 달 수입 내역</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4 mt-4">
-              {currentIncomeGroups.length > 0 ? currentIncomeGroups.map(([category, total]) => (
-                <div key={category} className="flex justify-between items-center border-b border-zinc-800 pb-2">
-                  <p className="font-medium text-zinc-300">💰 {category}</p>
-                  <p className="text-sky-500 font-bold">+₩ {total.toLocaleString()}</p>
-                </div>
-              )) : (
-                <p className="text-zinc-500 text-sm text-center py-4">이번 달 수입 내역이 없습니다.</p>
-              )}
-            </div>
-          </DialogContent>
-        </Dialog>
+        <Card className="bg-zinc-900/50 border-zinc-800 backdrop-blur-xl">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium text-zinc-400">이번 달 수입</CardTitle>
+            <DollarSign className="h-4 w-4 text-sky-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-white">₩ {currentMonthIncome.toLocaleString()}</div>
+          </CardContent>
+        </Card>
 
-        <Dialog>
-          <DialogTrigger render={<div className="cursor-pointer group h-full" />}>
-            <Card className="h-full bg-zinc-900/50 border-zinc-800 backdrop-blur-xl group-hover:bg-zinc-800/80 transition-all">
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium text-zinc-400">이번 달 지출</CardTitle>
-                <CreditCard className="h-4 w-4 text-rose-500" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-white">₩ {currentMonthExpense.toLocaleString()}</div>
-                <p className="text-xs text-zinc-500 flex items-center mt-1 group-hover:text-rose-400 transition-colors">
-                  클릭하여 내역 보기 👆
-                </p>
-              </CardContent>
-            </Card>
-          </DialogTrigger>
-          <DialogContent className="bg-zinc-950 border-zinc-800 text-white max-h-[80vh] overflow-y-auto w-[90vw] sm:max-w-[425px]">
-            <DialogHeader>
-              <DialogTitle>이번 달 지출 내역 (고정지출 포함)</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-6 mt-4">
-              {fixedExpenseTotal > 0 && (
-                <div>
-                  <div className="flex justify-between items-center border-b border-zinc-700 pb-2 mb-3">
-                    <p className="font-bold text-rose-400">📌 핵심 금융/고정 지출 (총 ₩ {fixedExpenseTotal.toLocaleString()})</p>
-                  </div>
-                  <div className="space-y-2 pl-2">
-                    {currentFixedExpenseGroups.map(([cat, total]) => (
-                      <div key={cat} className="flex justify-between items-center">
-                        <p className="font-medium text-zinc-400">- {cat}</p>
-                        <p className="text-rose-400/80 text-sm font-medium">-₩ {total.toLocaleString()}</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-              {variableExpenseTotal > 0 && (
-                <div>
-                  <div className="flex justify-between items-center border-b border-zinc-700 pb-2 mb-3">
-                    <p className="font-bold text-orange-400">💸 생활/변동 지출 (총 ₩ {variableExpenseTotal.toLocaleString()})</p>
-                  </div>
-                </div>
-              )}
-              {currentCardExpenseGroups.length > 0 && (
-                <div>
-                  <div className="flex justify-between items-center border-b border-zinc-700 pb-2 mb-3">
-                    <p className="font-bold text-zinc-300">💳 카드/현금 사용 실적 (고정+변동)</p>
-                  </div>
-                  <div className="space-y-2 pl-2">
-                    {currentCardExpenseGroups.map(([card, total]) => (
-                      <div key={card} className="flex justify-between items-center">
-                        <p className="font-medium text-zinc-400">- {card}</p>
-                        <p className="text-zinc-300 text-sm font-medium">₩ {total.toLocaleString()}</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-              {fixedExpenseTotal === 0 && currentCardExpenseGroups.length === 0 && (
-                <p className="text-zinc-500 text-sm text-center py-4">이번 달 지출 내역이 없습니다.</p>
-              )}
+        <Card className="bg-zinc-900/50 border-zinc-800 backdrop-blur-xl">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium text-zinc-400">이번 달 지출</CardTitle>
+            <CreditCard className="h-4 w-4 text-rose-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-white">₩ {currentMonthExpense.toLocaleString()}</div>
+            <div className="mt-2 space-y-1">
+              <p className="text-xs text-rose-400/80">고정: ₩ {fixedExpenseTotal.toLocaleString()}</p>
+              <p className="text-xs text-orange-400/80">변동: ₩ {variableExpenseTotal.toLocaleString()}</p>
             </div>
-          </DialogContent>
-        </Dialog>
+          </CardContent>
+        </Card>
 
         <Card className="bg-zinc-900/50 border-zinc-800 backdrop-blur-xl hover:bg-zinc-900/80 transition-all">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
