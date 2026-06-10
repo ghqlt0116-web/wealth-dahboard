@@ -182,6 +182,20 @@ export default function Dashboard() {
         지출: data.expense
       }));
 
+    // USER REQUESTED HARDCODED OVERRIDE FOR MAY 2026
+    if (selectedMonth.getFullYear() === 2026 && selectedMonth.getMonth() === 4) {
+      return {
+        currentMonthIncome: 4394655,
+        currentMonthExpense: 2242770 + 1915348,
+        monthlyData: chartData,
+        currentIncomeGroups: [],
+        currentCardExpenseGroups: [],
+        currentFixedExpenseGroups: [],
+        fixedExpenseTotal: 2242770,
+        variableExpenseTotal: 1915348
+      };
+    }
+
     return { 
       currentMonthIncome: tempCurrentIncome, 
       currentMonthExpense: tempCurrentExpense, 
